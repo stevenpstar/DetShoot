@@ -51,7 +51,7 @@ private:
 	// Movement related flags
 
 	bool MovementTakeOver = false;
-	float MeshRotationTargetY = 90.f;
+	float MeshRotationTargetY = -90.f;
 
 	// Cover related
 	
@@ -64,6 +64,9 @@ private:
 	UPROPERTY(EditAnywhere)
 	USpringArmComponent* SpringArm;
 
+	UPROPERTY(EditAnywhere)
+	USpringArmComponent* MeshSpring;
+	
 	UPROPERTY(EditAnywhere)
 	UCameraComponent* Camera;
 
