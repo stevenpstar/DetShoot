@@ -62,7 +62,7 @@ void AGunSlinger::Tick(float DeltaTime)
 
 		const float Distance = UKismetMathLibrary::Vector_Distance(GetActorLocation(), TargetPlayerZ);
 		UE_LOG(LogTemp, Warning, TEXT("Distance: %f"), Distance);
-		if (Distance < 60.f)
+		if (Distance < 65.f)
 		{
 			MovementTakeOver = false;
 		} 
@@ -110,7 +110,7 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
 	{
 		UE_LOG(LogTemp, Display, TEXT("Clearing Active Zone"));
 		ActiveCoverZone.Reset();
-		MeshRotationTargetY = -90.f;
+		MeshRotationTargetY = 90.f;
 		SpringArmTargetY = 90.f;
 		return;
 	}
@@ -158,13 +158,13 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 	// Moving in cover
 	if (ActiveCoverZone.IsSet())
 	{
-		if (MovementVector.X < 0.f)
-		{
-			MeshRotationTargetY = 180.f;
-		} else
-		{
-			MeshRotationTargetY = 0.f;
-		}
+	//	if (MovementVector.X < 0.f)
+	//	{
+	//		MeshRotationTargetY = 180.f;
+	//	} else
+	//	{
+	//		MeshRotationTargetY = 0.f;
+	//	}
 
 		USplineComponent* CoverPath = ActiveCoverZone.GetValue()->GetCoverPath();
 		if (!CoverPath) return;
@@ -172,17 +172,158 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 			GetActorLocation(),
 			ESplineCoordinateSpace::World);
 
+
 		float SplineDistance = ActiveCoverZone.GetValue()->GetCoverPath()->GetDistanceAlongSplineAtLocation(
 			GetActorLocation(),
 			ESplineCoordinateSpace::World);
 
-		float ClosestInput = CoverPath->FindInputKeyClosestToWorldLocation(GetActorLocation());
+		int32 ClosestSplineIndex = 0;
+		int32 NextSplineIndex = 0;
+		float LowestDistance = 99999.f;
 		int32 SplineCount = CoverPath->GetNumberOfSplinePoints();
+		
+		FVector MoveDir = FVector::ZeroVector;
+		FVector From = FVector::ZeroVector;
+		FVector To = FVector::ZeroVector;
+		
 		for (int32 i = 0; i < SplineCount; i++)
 		{
+			FVector Loc = CoverPath->GetSplinePointAt(i, ESplineCoordinateSpace::World).Position;
+			float Dist = UKismetMathLibrary::Vector_Distance(GetActorLocation(), Loc);
 			
+
+			if (Dist < LowestDistance)
+			{
+				LowestDistance = Dist;
+				ClosestSplineIndex = i;
+			}
 		}
 
+		// Going right TODO: This will be flipped
+		if (MovementVector.X < 0.f)
+		{
+			NextSplineIndex = ClosestSplineIndex + 1;
+			if (ClosestSplineIndex == SplineCount - 1)
+			{
+				NextSplineIndex = ClosestSplineIndex;
+				ClosestSplineIndex -= 1;
+			}
+			From = CoverPath->GetSplinePointAt(ClosestSplineIndex, ESplineCoordinateSpace::World).Position;
+			To = CoverPath->GetSplinePointAt(NextSplineIndex, ESplineCoordinateSpace::World).Position;
+			MoveDir = UKismetMathLibrary::GetDirectionUnitVector(From, To);
+		} else if (MovementVector.X > 0.f)
+		{
+			NextSplineIndex = ClosestSplineIndex - 1;
+			if (ClosestSplineIndex == 0)
+			{
+				NextSplineIndex = ClosestSplineIndex;
+				ClosestSplineIndex += 1;
+			}
+			From = CoverPath->GetSplinePointAt(ClosestSplineIndex, ESplineCoordinateSpace::World).Position;
+			To = CoverPath->GetSplinePointAt(NextSplineIndex, ESplineCoordinateSpace::World).Position;
+			MoveDir = UKismetMathLibrary::GetDirectionUnitVector(To, From);
+		}
+
+		// IGNORING ABOVE LOL
+
+		// TODO: If not work try local space??
+		float SplineDist = CoverPath->GetDistanceAlongSplineAtLocation(
+			GetActorLocation(),
+			ESplineCoordinateSpace::World);
+		const FVector D = CoverPath->GetLocationAtDistanceAlongSpline(SplineDist,
+			ESplineCoordinateSpace::World);
+		SetActorLocation(FVector(D.X, D.Y, GetActorLocation().Z));
+		MoveDir = FVector::ZeroVector;
+		LowestDistance = TNumericLimits<float>().Max();
+		float ActualDistValue = 0.f;
+		
+		for (int32 i = 0; i < SplineCount; i++)
+		{
+			float PointDist = CoverPath->GetDistanceAlongSplineAtSplinePoint(i);
+			const float Dist = abs(SplineDist - PointDist);
+			if (Dist < LowestDistance)
+			{
+				ClosestSplineIndex = i;
+				ActualDistValue = SplineDist - PointDist; // if > 0 (depending on dir) you are arriving or leaving from point etc.
+				LowestDistance = Dist;
+			}
+		}
+
+		if (MovementVector.X > 0.f)
+		{
+			if (ActualDistValue >= 0.f)
+			{
+				NextSplineIndex = ClosestSplineIndex + 1;
+				
+				From = CoverPath->GetLocationAtDistanceAlongSpline(
+					CoverPath->GetDistanceAlongSplineAtSplinePoint(NextSplineIndex),
+					ESplineCoordinateSpace::World);
+
+				To = CoverPath->GetLocationAtDistanceAlongSpline(
+					CoverPath->GetDistanceAlongSplineAtSplinePoint(ClosestSplineIndex),
+					ESplineCoordinateSpace::World);
+
+				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(From, To);
+			} else
+			{
+				NextSplineIndex = ClosestSplineIndex - 1;
+				From = CoverPath->GetLocationAtDistanceAlongSpline(
+								CoverPath->GetDistanceAlongSplineAtSplinePoint(ClosestSplineIndex),
+								ESplineCoordinateSpace::World);
+
+				To = CoverPath->GetLocationAtDistanceAlongSpline(
+								CoverPath->GetDistanceAlongSplineAtSplinePoint(NextSplineIndex),
+								ESplineCoordinateSpace::World);
+				
+				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(From, To);
+			}
+			
+			MeshRotationTargetY = MoveDir.Rotation().Yaw - 90.f;
+		}
+		else if (MovementVector.X < 0.f)
+		{
+			if (ActualDistValue >= 0.f)
+			{
+				NextSplineIndex = ClosestSplineIndex + 1;
+				From = CoverPath->GetLocationAtDistanceAlongSpline(
+								CoverPath->GetDistanceAlongSplineAtSplinePoint(ClosestSplineIndex),
+								ESplineCoordinateSpace::World);
+
+				To = CoverPath->GetLocationAtDistanceAlongSpline(
+								CoverPath->GetDistanceAlongSplineAtSplinePoint(NextSplineIndex),
+								ESplineCoordinateSpace::World);
+				
+				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(To, From);
+			} else
+			{
+				NextSplineIndex = ClosestSplineIndex - 1;
+				
+				From = CoverPath->GetLocationAtDistanceAlongSpline(
+					CoverPath->GetDistanceAlongSplineAtSplinePoint(NextSplineIndex),
+					ESplineCoordinateSpace::World);
+
+				To = CoverPath->GetLocationAtDistanceAlongSpline(
+					CoverPath->GetDistanceAlongSplineAtSplinePoint(ClosestSplineIndex),
+					ESplineCoordinateSpace::World);
+
+				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(To, From);
+			}
+			
+			MeshRotationTargetY = MoveDir.Rotation().Yaw + 90.f;
+		}
+
+		DrawDebugPoint(
+	GetWorld(),
+	From,
+	10.f,
+	FColor::Emerald);
+
+		DrawDebugPoint(
+			GetWorld(),
+			To,
+			10.f,
+			FColor::Cyan);
+		
 		// Test cover spline goes right to left, TODO: should probably reverse this when we do it properly!
 		if (SplineDistance >= ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() / 2.f
 			&& MovementVector.X < 0.f)
@@ -204,7 +345,7 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 		{
 		} else
 		{
-			AddMovementInput(SplineDirection, -MovementVector.X);
+			AddMovementInput(MoveDir, MovementVector.X);
 		}
 
 	} else
@@ -271,10 +412,10 @@ void AGunSlinger::UpdateAim()
 	SpringArm->SetRelativeLocation(FVector(SpringArm->GetRelativeLocation().X, SpringY, SpringArm->GetRelativeLocation().Z));
 
 	// TODO: This should be elsewhere lol
-	float MeshRotY = GetMesh()->GetRelativeRotation().Yaw;
+	float MeshRotY = GetMesh()->GetComponentRotation().Yaw;
 	MeshRotY = FMath::FInterpTo(MeshRotY, MeshRotationTargetY , GetWorld()->GetDeltaSeconds(), 10.f);
-	GetMesh()->SetRelativeRotation(FRotator(GetMesh()->GetRelativeRotation().Pitch,
+	GetMesh()->SetWorldRotation(FRotator(GetMesh()->GetComponentRotation().Pitch,
 		MeshRotY,
-		GetMesh()->GetRelativeRotation().Roll));
+		GetMesh()->GetComponentRotation().Roll));
 }
 

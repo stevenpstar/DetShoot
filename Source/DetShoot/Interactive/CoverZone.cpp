@@ -21,7 +21,7 @@ ACoverZone::ACoverZone()
 	CoverArea->SetupAttachment(Root);
 
 	CoverPath = CreateDefaultSubobject<USplineComponent>(TEXT("Cover Path"));
-	CoverPath->SetupAttachment(CoverArea);
+	CoverPath->SetupAttachment(Root);
 	
 	LeftBound = CreateDefaultSubobject<USceneComponent>(TEXT("Left Bound"));
 	RightBound = CreateDefaultSubobject<USceneComponent>(TEXT("Right Bound"));
