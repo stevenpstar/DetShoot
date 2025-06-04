@@ -45,11 +45,13 @@ public:
 	
 private:
 
+	// Camera related flags, maybe make it a FVector to handle aiming/panning? float for now
+	float SpringArmTargetY = 90.f;
+
 	// Movement related flags
 
 	bool MovementTakeOver = false;
-
-
+	float MeshRotationTargetY = -90.f;
 
 	// Cover related
 	

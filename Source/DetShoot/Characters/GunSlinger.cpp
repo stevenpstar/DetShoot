@@ -110,9 +110,8 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
 	{
 		UE_LOG(LogTemp, Display, TEXT("Clearing Active Zone"));
 		ActiveCoverZone.Reset();
-		FRotator rot = GetMesh()->GetRelativeRotation();
-		rot.Yaw += 180.f;
-		GetMesh()->SetRelativeRotation(rot);
+		MeshRotationTargetY = -90.f;
+		SpringArmTargetY = 90.f;
 		return;
 	}
 	MovementTakeOver = true;
@@ -136,9 +135,7 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
 		true,
 		1000);
 	// Debug Rotation
-	FRotator rot = GetMesh()->GetRelativeRotation();
-	rot.Yaw += 180.f;
-	GetMesh()->SetRelativeRotation(rot);
+	MeshRotationTargetY = 180.f;
 }
 
 void AGunSlinger::SetOverlappedCoverZone(ACoverZone* Zone, bool ClearZone)
@@ -158,10 +155,58 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 	if (MovementTakeOver) return;
 	const FVector2D MovementVector = Value.Get<FVector2D>();
 
+	// Moving in cover
 	if (ActiveCoverZone.IsSet())
 	{
-		if (!AIController) return;
-		//GetLocalViewingPlayerController()->Simple
+		if (MovementVector.X < 0.f)
+		{
+			MeshRotationTargetY = 180.f;
+		} else
+		{
+			MeshRotationTargetY = 0.f;
+		}
+
+		USplineComponent* CoverPath = ActiveCoverZone.GetValue()->GetCoverPath();
+		if (!CoverPath) return;
+		FVector SplineDirection = ActiveCoverZone.GetValue()->GetCoverPath()->FindDirectionClosestToWorldLocation(
+			GetActorLocation(),
+			ESplineCoordinateSpace::World);
+
+		float SplineDistance = ActiveCoverZone.GetValue()->GetCoverPath()->GetDistanceAlongSplineAtLocation(
+			GetActorLocation(),
+			ESplineCoordinateSpace::World);
+
+		float ClosestInput = CoverPath->FindInputKeyClosestToWorldLocation(GetActorLocation());
+		int32 SplineCount = CoverPath->GetNumberOfSplinePoints();
+		for (int32 i = 0; i < SplineCount; i++)
+		{
+			
+		}
+
+		// Test cover spline goes right to left, TODO: should probably reverse this when we do it properly!
+		if (SplineDistance >= ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() / 2.f
+			&& MovementVector.X < 0.f)
+		{
+		//	SpringArm->SetRelativeLocation(FVector(0.0f, -90.f, 70.f));
+			SpringArmTargetY = -90.f;
+		} else if (SplineDistance < ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() / 2.f
+			&& MovementVector.X > 0.f)
+		{
+			//SpringArm->SetRelativeLocation(FVector(0.0f, 90.f, 70.f));
+			SpringArmTargetY = 90.f;
+		}
+		if (SplineDistance >= ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() - 30.f &&
+			MovementVector.X < 0.f)
+		{
+			// No movement
+		} else if (SplineDistance <= 30.f &&
+			MovementVector.X > 0.f)
+		{
+		} else
+		{
+			AddMovementInput(SplineDirection, -MovementVector.X);
+		}
+
 	} else
 	{
 		AddMovementInput(GetActorForwardVector(), MovementVector.Y);
@@ -220,5 +265,16 @@ void AGunSlinger::UpdateAim()
 	{
 		SpringArm->TargetArmLength = FMath::FInterpConstantTo(SpringArm->TargetArmLength, 300.f, GetWorld()->GetDeltaSeconds(),2000.f);
 	}
+
+	float SpringY = SpringArm->GetRelativeLocation().Y;
+	SpringY = FMath::FInterpTo(SpringY, SpringArmTargetY, GetWorld()->GetDeltaSeconds(), 10.f);
+	SpringArm->SetRelativeLocation(FVector(SpringArm->GetRelativeLocation().X, SpringY, SpringArm->GetRelativeLocation().Z));
+
+	// TODO: This should be elsewhere lol
+	float MeshRotY = GetMesh()->GetRelativeRotation().Yaw;
+	MeshRotY = FMath::FInterpTo(MeshRotY, MeshRotationTargetY , GetWorld()->GetDeltaSeconds(), 10.f);
+	GetMesh()->SetRelativeRotation(FRotator(GetMesh()->GetRelativeRotation().Pitch,
+		MeshRotY,
+		GetMesh()->GetRelativeRotation().Roll));
 }
 
