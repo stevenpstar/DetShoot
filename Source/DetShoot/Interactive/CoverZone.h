@@ -33,6 +33,9 @@ public:
 
 	USplineComponent* GetCoverPath() const;
 
+	UPROPERTY(EditAnywhere)
+	bool CrouchBehind = false;
+
 private:
 
 	UPROPERTY()

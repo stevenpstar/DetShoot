@@ -122,11 +122,16 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
 		MeshRotationTargetY = -90.f;
 		SpringArmTargetY = 90.f;
 		MeshSpring->bInheritYaw = true;
+		UnCrouch();
 		return;
 	}
 	
 	MeshSpring->bInheritYaw = false;
 	MovementTakeOver = true;
+	if (Zone->CrouchBehind)
+	{
+		Crouch();
+	}
 	ActiveCoverZone = Zone;
 	const float SplineDist = ActiveCoverZone.GetValue()->GetCoverPath()->GetDistanceAlongSplineAtLocation(
 		GetActorLocation(),
@@ -272,10 +277,10 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 		}
 
 		DrawDebugPoint(
-	GetWorld(),
-	From,
-	10.f,
-	FColor::Emerald);
+			GetWorld(),
+			From,
+			10.f,
+			FColor::Emerald);
 
 		DrawDebugPoint(
 			GetWorld(),
@@ -287,12 +292,10 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 		if (SplineDistance >= ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() / 2.f
 			&& MovementVector.X < 0.f)
 		{
-		//	SpringArm->SetRelativeLocation(FVector(0.0f, -90.f, 70.f));
 			SpringArmTargetY = -90.f;
 		} else if (SplineDistance < ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() / 2.f
 			&& MovementVector.X > 0.f)
 		{
-			//SpringArm->SetRelativeLocation(FVector(0.0f, 90.f, 70.f));
 			SpringArmTargetY = 90.f;
 		}
 		if (SplineDistance >= ActiveCoverZone.GetValue()->GetCoverPath()->GetSplineLength() - 30.f &&
@@ -347,7 +350,7 @@ void AGunSlinger::StopAiming(const FInputActionValue& Value)
 void AGunSlinger::TakeCover()
 {
 	
-	bool ClearZone = ActiveCoverZone.IsSet();
+	const bool ClearZone = ActiveCoverZone.IsSet();
 	if (ClearZone)
 	{
 		// This is a bit weird
@@ -366,8 +369,15 @@ void AGunSlinger::UpdateAim()
 {
 	if (IsAiming)
 	{
-		MeshSpring->bInheritYaw = true;
-		MeshRotationTargetY = -90.f;
+		if (!ActiveCoverZone.IsSet())
+		{
+			MeshSpring->bInheritYaw = true;
+			MeshRotationTargetY = -90.f;
+		} else
+		{
+			MeshRotationTargetY = GetActorForwardVector().Rotation().Yaw - 90.f;
+		}
+		
 		SpringArm->TargetArmLength = FMath::FInterpConstantTo(SpringArm->TargetArmLength, 150.f, GetWorld()->GetDeltaSeconds(),2000.f);
 	} else
 	{
@@ -378,9 +388,9 @@ void AGunSlinger::UpdateAim()
 		SpringArm->TargetArmLength = FMath::FInterpConstantTo(SpringArm->TargetArmLength, 300.f, GetWorld()->GetDeltaSeconds(),2000.f);
 	}
 
-	float SpringY = SpringArm->GetRelativeLocation().Y;
+	float SpringY = SpringArm->SocketOffset.Y;
 	SpringY = FMath::FInterpTo(SpringY, SpringArmTargetY, GetWorld()->GetDeltaSeconds(), 10.f);
-	SpringArm->SetRelativeLocation(FVector(SpringArm->GetRelativeLocation().X, SpringY, SpringArm->GetRelativeLocation().Z));
+	SpringArm->SocketOffset.Y = SpringY;
 
 	// TODO: This should be elsewhere lol
 	UE::Math::TQuat<double> MeshRot = GetMesh()->GetRelativeRotation().Quaternion();
@@ -388,11 +398,13 @@ void AGunSlinger::UpdateAim()
 		GetMesh()->GetRelativeRotation().Pitch,
 		MeshRotationTargetY,
 		GetMesh()->GetRelativeRotation().Roll).Quaternion();
+
+	float RotSpeed = IsAiming ? 0.5f : 0.1f;
 	
 	MeshRot = UKismetMathLibrary::Quat_Slerp(
 		MeshRot,
 		TargetRot,
-		0.1f);
+		RotSpeed);
 	GetMesh()->SetRelativeRotation(MeshRot);
 }
 
