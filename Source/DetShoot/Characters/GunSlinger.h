@@ -42,6 +42,37 @@ public:
 
 	void SetActiveCoverZone(ACoverZone* Zone, bool ClearZone);
 	void SetOverlappedCoverZone(ACoverZone* Zone, bool ClearZone);
+
+	UFUNCTION(BlueprintCallable)
+	bool GetIsAiming();
+
+	UFUNCTION(BlueprintCallable)
+	bool GetIsCrouching();
+
+	UFUNCTION(BlueprintCallable)
+	bool GetIsInCover();
+
+	UFUNCTION(Server, Reliable)
+	void Server_SetInCover(AGunSlinger* Target, bool InCover);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multi_SetInCover(AGunSlinger* Target, bool InCover);
+
+	UFUNCTION(Server, Reliable)
+	void Server_SetAnimationState(AGunSlinger* Target, bool InCover, bool Aiming);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multi_SetAnimationState(AGunSlinger* Target, bool InCover, bool Aiming);
+
+	UFUNCTION(Server, Reliable)
+	void Server_SetRotationTarget(AGunSlinger* Target, float RotTarget);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multi_SetRotationTarget(AGunSlinger* Target, float RotTarget);
+
+	void SetRotationTarget(float RotTarget);
+
+	void SetIsInCover(bool InCover);
 	
 private:
 
@@ -51,10 +82,12 @@ private:
 	// Movement related flags
 
 	bool MovementTakeOver = false;
-	float MeshRotationTargetY = -90.f;
+	
+	UPROPERTY(Replicated)
+	float MeshRotationTargetY = 0.f;
 
 	// Cover related
-	
+
 	TOptional<ACoverZone*> ActiveCoverZone;
 	TOptional<ACoverZone*> OverlappedCoverZone;
 	FVector TargetLocation;
@@ -72,6 +105,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	UShootingComponent* ShootingComponent;
+
+	UPROPERTY(VisibleAnywhere)
+	USkeletalMeshComponent* NewMesh;
 	// UI
 
 	UPROPERTY(EditAnywhere)
@@ -116,6 +152,11 @@ private:
 	void StopAiming(const FInputActionValue& Value);
 	void TakeCover();
 
+	UPROPERTY(Replicated)
 	bool IsAiming = false;
+	
+	UPROPERTY(Replicated)
+	bool IsCrouching = false;
+	
 	void UpdateAim();
 };

@@ -13,6 +13,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 
 // Sets default values
@@ -51,9 +52,9 @@ void AGunSlinger::BeginPlay()
 
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetWorld()->GetFirstPlayerController()))
 	{
-		PlayerController->ConsoleCommand(TEXT("show Collision"));
-		PlayerController->ConsoleCommand(TEXT("show Navigation"));
-		PlayerController->ConsoleCommand(TEXT("show Splines"));
+	//	PlayerController->ConsoleCommand(TEXT("show Collision"));
+	//	PlayerController->ConsoleCommand(TEXT("show Navigation"));
+	//	PlayerController->ConsoleCommand(TEXT("show Splines"));
 	}
 }
 
@@ -117,20 +118,33 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
 	if (!Zone) return;
 	if (ClearZone)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Clearing Active Zone"));
 		ActiveCoverZone.Reset();
-		MeshRotationTargetY = -90.f;
+		SetRotationTarget(0.f);
 		SpringArmTargetY = 90.f;
-		MeshSpring->bInheritYaw = true;
+//		MeshSpring->bInheritYaw = true;
 		UnCrouch();
+		if (HasAuthority())
+		{
+			Multi_SetInCover(this, false);
+		} else
+		{
+			Server_SetInCover(this, false);
+		}
 		return;
 	}
 	
-	MeshSpring->bInheritYaw = false;
+//	MeshSpring->bInheritYaw = false;
 	MovementTakeOver = true;
 	if (Zone->CrouchBehind)
 	{
 		Crouch();
+		if (HasAuthority())
+		{
+			Multi_SetInCover(this, true);
+		} else
+		{
+			Server_SetInCover(this, true);
+		}
 	}
 	ActiveCoverZone = Zone;
 	const float SplineDist = ActiveCoverZone.GetValue()->GetCoverPath()->GetDistanceAlongSplineAtLocation(
@@ -144,15 +158,8 @@ void AGunSlinger::SetActiveCoverZone(ACoverZone* Zone, bool ClearZone)
     UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller,
     	FVector(TargetLocation.X, TargetLocation.Y, GetActorLocation().Z));
 
-	DrawDebugPoint(
-		GetWorld(),
-		FVector(TargetLocation.X, TargetLocation.Y, GetActorLocation().Z),
-		4.f,
-		FColor::Blue,
-		true,
-		1000);
-	// Debug Rotation
-	MeshRotationTargetY = 180.f;
+	//MeshRotationTargetY = 180.f;
+	//SetRotationTarget(180.f);
 }
 
 void AGunSlinger::SetOverlappedCoverZone(ACoverZone* Zone, bool ClearZone)
@@ -165,6 +172,75 @@ void AGunSlinger::SetOverlappedCoverZone(ACoverZone* Zone, bool ClearZone)
 		return;
 	}
 	OverlappedCoverZone = Zone;
+}
+
+bool AGunSlinger::GetIsAiming()
+{
+	return IsAiming;
+}
+
+bool AGunSlinger::GetIsCrouching()
+{
+	return IsCrouching;
+}
+
+bool AGunSlinger::GetIsInCover()
+{
+	return ActiveCoverZone.IsSet();
+}
+
+void AGunSlinger::Server_SetAnimationState_Implementation(AGunSlinger* Target, bool InCover, bool Aiming)
+{
+	Multi_SetAnimationState(this, IsCrouching, IsAiming);
+}
+
+void AGunSlinger::Multi_SetAnimationState_Implementation(AGunSlinger* Target, bool InCover, bool Aiming)
+{
+	Target->IsAiming = Aiming;
+	Target->SetIsInCover(InCover);
+}
+
+void AGunSlinger::Server_SetRotationTarget_Implementation(AGunSlinger* Target, float RotTarget)
+{
+	Target->MeshRotationTargetY = RotTarget;
+	//Multi_SetRotationTarget(Target, RotTarget);
+}
+
+void AGunSlinger::Multi_SetRotationTarget_Implementation(AGunSlinger* Target, float RotTarget)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Setting Rotation Target to everyone: %f"), RotTarget);
+	Target->MeshRotationTargetY = RotTarget;
+	UE::Math::TQuat<double> MeshRot = GetMesh()->GetRelativeRotation().Quaternion();
+
+//	Target->BaseRotationOffset = MeshRot;
+}
+
+void AGunSlinger::SetRotationTarget(float RotTarget)
+{
+	return;
+//	if (HasAuthority())
+//	{
+//		Multi_SetRotationTarget(this, RotTarget);
+//	} else
+//	{
+//		Server_SetRotationTarget(this, RotTarget);
+//	}
+}
+
+void AGunSlinger::SetIsInCover(bool Cover)
+{
+	IsCrouching = Cover;
+}
+
+void AGunSlinger::Multi_SetInCover_Implementation(AGunSlinger* Target, bool InCover)
+{
+	Target->MeshSpring->bInheritYaw = !InCover;
+	Target->SetIsInCover(InCover);
+}
+
+void AGunSlinger::Server_SetInCover_Implementation(AGunSlinger* Target, bool InCover)
+{
+	Multi_SetInCover(Target, InCover);
 }
 
 void AGunSlinger::Move(const FInputActionValue& Value)
@@ -242,7 +318,8 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(From, To);
 			}
 
-			MeshRotationTargetY = MoveDir.Rotation().Yaw - 90.f;
+			//SetRotationTarget(MoveDir.Rotation().Yaw);
+			MeshRotationTargetY = MoveDir.Rotation().Yaw;
 		}
 		else if (MovementVector.X < 0.f)
 		{
@@ -273,7 +350,8 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 				MoveDir = UKismetMathLibrary::GetDirectionUnitVector(To, From);
 			}
 			
-			MeshRotationTargetY = MoveDir.Rotation().Yaw + 90.f;
+			//SetRotationTarget(MoveDir.Rotation().Yaw - 180.f);
+			MeshRotationTargetY = MoveDir.Rotation().Yaw - 180.f;
 		}
 
 		DrawDebugPoint(
@@ -338,12 +416,26 @@ void AGunSlinger::Attack(const FInputActionValue& Value)
 void AGunSlinger::Aim(const FInputActionValue& Value)
 {
 	IsAiming = true;
+	if (HasAuthority())
+	{
+		Multi_SetAnimationState(this, IsCrouching, IsAiming);
+	} else
+	{
+		Server_SetAnimationState(this, IsCrouching, IsAiming);
+	}
 	SpringArm->bEnableCameraLag = false;
 }
 
 void AGunSlinger::StopAiming(const FInputActionValue& Value)
 {
 	IsAiming = false;
+	if (HasAuthority())
+	{
+		Multi_SetAnimationState(this, IsCrouching, IsAiming);
+	} else
+	{
+		Server_SetAnimationState(this, IsCrouching, IsAiming);
+	}
 	SpringArm->bEnableCameraLag = true;
 }
 
@@ -371,11 +463,14 @@ void AGunSlinger::UpdateAim()
 	{
 		if (!ActiveCoverZone.IsSet())
 		{
-			MeshSpring->bInheritYaw = true;
-			MeshRotationTargetY = -90.f;
+		//	MeshSpring->bInheritYaw = true;
+			
+			MeshRotationTargetY = 0.f;
+			SetRotationTarget(0.f);
 		} else
 		{
-			MeshRotationTargetY = GetActorForwardVector().Rotation().Yaw - 90.f;
+			//SetRotationTarget(GetActorForwardVector().Rotation().Yaw);
+			MeshRotationTargetY = GetActorForwardVector().Rotation().Yaw;
 		}
 		
 		SpringArm->TargetArmLength = FMath::FInterpConstantTo(SpringArm->TargetArmLength, 150.f, GetWorld()->GetDeltaSeconds(),2000.f);
@@ -383,7 +478,7 @@ void AGunSlinger::UpdateAim()
 	{
 		if (ActiveCoverZone.IsSet())
 		{
-			MeshSpring->bInheritYaw = false;
+		//	MeshSpring->bInheritYaw = false;
 		}
 		SpringArm->TargetArmLength = FMath::FInterpConstantTo(SpringArm->TargetArmLength, 300.f, GetWorld()->GetDeltaSeconds(),2000.f);
 	}
@@ -393,11 +488,11 @@ void AGunSlinger::UpdateAim()
 	SpringArm->SocketOffset.Y = SpringY;
 
 	// TODO: This should be elsewhere lol
-	UE::Math::TQuat<double> MeshRot = GetMesh()->GetRelativeRotation().Quaternion();
+	UE::Math::TQuat<double> MeshRot = MeshSpring->GetRelativeRotation().Quaternion();
 	UE::Math::TQuat<double> TargetRot = FRotator(
-		GetMesh()->GetRelativeRotation().Pitch,
+		MeshSpring->GetRelativeRotation().Pitch,
 		MeshRotationTargetY,
-		GetMesh()->GetRelativeRotation().Roll).Quaternion();
+		MeshSpring->GetRelativeRotation().Roll).Quaternion();
 
 	float RotSpeed = IsAiming ? 0.5f : 0.1f;
 	
@@ -405,6 +500,25 @@ void AGunSlinger::UpdateAim()
 		MeshRot,
 		TargetRot,
 		RotSpeed);
-	GetMesh()->SetRelativeRotation(MeshRot);
+	if (HasAuthority())
+	{
+	} else
+	{
+		if (IsLocallyControlled())
+		{
+			Server_SetRotationTarget(this, MeshRotationTargetY);
+		}
+	}
+	MeshSpring->SetRelativeRotation(MeshRot);
+}
+
+void AGunSlinger::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// Here we list the variables we want to replicate
+	DOREPLIFETIME(AGunSlinger, IsCrouching);
+	DOREPLIFETIME(AGunSlinger, IsAiming);
+	DOREPLIFETIME(AGunSlinger, MeshRotationTargetY);
 }
 
