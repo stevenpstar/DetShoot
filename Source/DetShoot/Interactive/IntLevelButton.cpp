@@ -42,6 +42,28 @@ void AIntLevelButton::Trigger()
 	Triggered = true;
 }
 
+void AIntLevelButton::SetLinkedPosition(ALevelPosition* Position)
+{
+	if (Position)
+	{
+		TargetPosition = Position;
+	} else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to set Linked Position as Target Position (Linked Position not found)"));
+	}
+}
+
+void AIntLevelButton::SetLevelManager(ALevelManager* Manager)
+{
+	if (Manager)
+	{
+		LevelManager = Manager;
+	} else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to set Level Manager"));
+	}
+}
+
 // Called when the game starts or when spawned
 void AIntLevelButton::BeginPlay()
 {

@@ -3,42 +3,36 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Interactive.h"
 #include "GameFramework/Actor.h"
-#include "IntLevelButton.generated.h"
+#include "LevelSpawner.generated.h"
 
-class ALevelPosition;
 class ALevelManager;
+class ALevelPosition;
+class APropSpawnPoint;
+
+struct FLevelPositionRow;
 
 UCLASS()
-class DETSHOOT_API AIntLevelButton : public AInteractive
+class DETSHOOT_API ALevelSpawner : public AActor
 {
 	GENERATED_BODY()
 
 public:
 	// Sets default values for this actor's properties
-	AIntLevelButton();
+	ALevelSpawner();
 
-	virtual void Trigger() override;
-	void SetLinkedPosition(ALevelPosition* Position);
-	void SetLevelManager(ALevelManager* Manager);
+	void SpawnProps();
+	void SpawnLevelButtons(ALevelPosition* Position, TArray<FLevelPositionRow> &LevelPositions, ALevelManager* Manager);
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere)
-	UStaticMeshComponent* IntMesh;
-
+	TArray<APropSpawnPoint*> PropSpawnPoints;
+	
 	UPROPERTY(EditAnywhere)
-	ALevelManager* LevelManager;
-
-	UPROPERTY(EditAnywhere)
-	ALevelPosition* TargetPosition;
-
-private:
-	UPROPERTY(Replicated)
-	bool Triggered = false;
+	TArray<APropSpawnPoint*> LevelButtons;
 
 public:
 	// Called every frame

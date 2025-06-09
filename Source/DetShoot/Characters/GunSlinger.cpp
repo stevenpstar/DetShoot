@@ -62,9 +62,9 @@ void AGunSlinger::BeginPlay()
 
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetWorld()->GetFirstPlayerController()))
 	{
-	//	PlayerController->ConsoleCommand(TEXT("show Collision"));
-	//	PlayerController->ConsoleCommand(TEXT("show Navigation"));
-	//	PlayerController->ConsoleCommand(TEXT("show Splines"));
+		PlayerController->ConsoleCommand(TEXT("show Collision"));
+		PlayerController->ConsoleCommand(TEXT("show Navigation"));
+		PlayerController->ConsoleCommand(TEXT("show Splines"));
 	}
 }
 

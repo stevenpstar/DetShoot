@@ -55,4 +55,5 @@ public:
 	virtual void Tick(float DeltaTime) override;
 private:
 	bool LoadingLevel = false;
+	TOptional<ALevelPosition*> LoadingPosition;
 };

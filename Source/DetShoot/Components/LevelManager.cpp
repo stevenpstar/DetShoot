@@ -4,6 +4,7 @@
 #include "LevelManager.h"
 
 #include "DetShoot/Level/LevelPosition.h"
+#include "DetShoot/Level/LevelSpawner.h"
 #include "Engine/World.h"
 #include "Engine/LevelStreamingDynamic.h"
 
@@ -32,13 +33,12 @@ void ALevelManager::Multi_LoadInstancedLevel_Implementation(ALevelPosition* Posi
 		UE_LOG(LogTemp, Error, TEXT("No Level Names in Level Manager List"));
 		return;
 	}
-	// For now we will just grab something out of the level name list
 	const uint32 LevelNameIndex = FMath::RandRange(0, LevelNames.Num() - 1);
 	const FString LevelName = LevelNames[LevelNameIndex];
 	const FString LevelNameOverride = LevelName + Position->UniqueLevelNameTag;
 	const FVector Loc = Position->GetActorLocation();
 	bool success;
-	const ULevelStreamingDynamic* LoadedLevel = ULevelStreamingDynamic::LoadLevelInstance(
+	ULevelStreamingDynamic::LoadLevelInstance(
 		GetWorld(),
 		LevelName,
 		Loc,
@@ -51,8 +51,8 @@ void ALevelManager::Multi_LoadInstancedLevel_Implementation(ALevelPosition* Posi
 	} else
 	{
 		LoadingLevel = true;
+		LoadingPosition = Position;
 	}
-	// Probably add to a list of loaded levels, to unload on floor completion
 }
 
 void ALevelManager::Server_LoadInstancedLevel_Implementation(ALevelPosition* Position)
@@ -76,7 +76,12 @@ void ALevelManager::OnLevelInstanceLoaded(ULevel* Level, UWorld* World)
 		{
 			if (A)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Actor: %s"), *A->GetActorNameOrLabel());
+				if (ALevelSpawner* Spawner = Cast<ALevelSpawner>(A))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("We should get here"));
+					Spawner->SpawnProps();
+					Spawner->SpawnLevelButtons(LoadingPosition.GetValue(), LevelPositions, this);
+				}
 			}
 		}
 	}
