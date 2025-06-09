@@ -11,11 +11,18 @@ AInteractive::AInteractive()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
+void AInteractive::Trigger()
+{
+}
+
 // Called when the game starts or when spawned
 void AInteractive::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	if (!TargetVolume)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Target Volume has not been defined for interactive object"));
+	}
 }
 
 // Called every frame

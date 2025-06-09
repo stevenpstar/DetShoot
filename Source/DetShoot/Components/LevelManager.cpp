@@ -4,20 +4,18 @@
 #include "LevelManager.h"
 
 #include "DetShoot/Level/LevelPosition.h"
+#include "Engine/World.h"
 #include "Engine/LevelStreamingDynamic.h"
 
 
 // Sets default values for this component's properties
-ULevelManager::ULevelManager()
+ALevelManager::ALevelManager()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
+	PrimaryActorTick.bCanEverTick = true;
+	FWorldDelegates::LevelAddedToWorld.AddUObject(this, &ALevelManager::OnLevelInstanceLoaded);
 }
 
-void ULevelManager::Multi_LoadInstancedLevel_Implementation(ALevelPosition* Position)
+void ALevelManager::Multi_LoadInstancedLevel_Implementation(ALevelPosition* Position)
 {
 	if (!Position)
 	{
@@ -52,30 +50,43 @@ void ULevelManager::Multi_LoadInstancedLevel_Implementation(ALevelPosition* Posi
 		UE_LOG(LogTemp, Error, TEXT("Could not load level instance"));
 	} else
 	{
-		// Do something with this?
-		ULevel* Level = LoadedLevel->GetLoadedLevel();
+		LoadingLevel = true;
 	}
 	// Probably add to a list of loaded levels, to unload on floor completion
 }
 
-void ULevelManager::Server_LoadInstancedLevel_Implementation(ALevelPosition* Position)
+void ALevelManager::Server_LoadInstancedLevel_Implementation(ALevelPosition* Position)
 {
 	Multi_LoadInstancedLevel(Position);
 }
 
 // Called when the game starts
-void ULevelManager::BeginPlay()
+void ALevelManager::BeginPlay()
 {
 	Super::BeginPlay();
+}
 
-	// ...
-	
+void ALevelManager::OnLevelInstanceLoaded(ULevel* Level, UWorld* World)
+{
+	// load level
+	UE_LOG(LogTemp, Warning, TEXT("Level Added!"));
+	if (Level && LoadingLevel)
+	{
+		for (auto A : Level->Actors)
+		{
+			if (A)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Actor: %s"), *A->GetActorNameOrLabel());
+			}
+		}
+	}
+	LoadingLevel = false;
 }
 
 // Called every frame
-void ULevelManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void ALevelManager::Tick(float DeltaTime)
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Super::Tick(DeltaTime);
 
 	// ...
 }

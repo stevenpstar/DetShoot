@@ -52,6 +52,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool GetIsInCover();
 
+	UFUNCTION(BlueprintCallable)
+	bool GetDodging();
+
+	// NETWORKED FUNCTIONS
+
 	UFUNCTION(Server, Reliable)
 	void Server_SetInCover(AGunSlinger* Target, bool InCover);
 
@@ -70,10 +75,26 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multi_SetRotationTarget(AGunSlinger* Target, float RotTarget);
 
+	UFUNCTION(Server, Reliable)
+	void Server_Interact(FVector Pos, FVector Dir);
+	
+	UFUNCTION(NetMulticast, Reliable)
+	void Multi_Interact(FVector Pos, FVector Dir);
+	// TODO: REMOVE THIS TEST LEVEL INSTANCING
+
+	UFUNCTION(Server, Reliable)
+	void Server_LoadLevelInstance();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multi_LoadLevelInstance();
+	// TODO:
+
+	// END NETWORK
+
 	void SetRotationTarget(float RotTarget);
 
 	void SetIsInCover(bool InCover);
-	
+
 private:
 
 	// Camera related flags, maybe make it a FVector to handle aiming/panning? float for now
@@ -107,7 +128,7 @@ private:
 	UShootingComponent* ShootingComponent;
 
 	UPROPERTY(VisibleAnywhere)
-	USkeletalMeshComponent* NewMesh;
+	UStaticMeshComponent* GunMesh;
 	// UI
 
 	UPROPERTY(EditAnywhere)
@@ -145,18 +166,25 @@ private:
 	UPROPERTY(EditAnywhere, meta=(AllowPrivateAccess="true"))
 	UInputAction* CoverAction;
 
+	UPROPERTY(EditAnywhere, meta=(AllowPrivateAccess="true"))
+	UInputAction* UseAction;
+
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void Attack(const FInputActionValue& Value);
 	void Aim(const FInputActionValue& Value);
 	void StopAiming(const FInputActionValue& Value);
 	void TakeCover();
+	void Dodge();
+	void UseInteractive();
 
 	UPROPERTY(Replicated)
 	bool IsAiming = false;
 	
 	UPROPERTY(Replicated)
 	bool IsCrouching = false;
+
+	bool IsDodging = false;
 	
 	void UpdateAim();
 };

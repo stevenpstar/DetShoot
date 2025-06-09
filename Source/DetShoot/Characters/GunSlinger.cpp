@@ -13,6 +13,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "DetShoot/Interactive/Interactive.h"
+#include "Engine/LevelStreamingDynamic.h"
 #include "Net/UnrealNetwork.h"
 
 
@@ -35,6 +37,9 @@ AGunSlinger::AGunSlinger()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm);
 
+	GunMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Gun"));
+	GunMesh->SetupAttachment(GetMesh());
+
 	ShootingComponent = CreateDefaultSubobject<UShootingComponent>(TEXT("Shooting Component"));
 
 	AIController = CreateDefaultSubobject<AAIController>(TEXT("Ai Controller?"));
@@ -44,6 +49,11 @@ AGunSlinger::AGunSlinger()
 void AGunSlinger::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (GunMesh)
+	{
+		GunMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::KeepRelativeTransform, TEXT("GunSocket"));
+	}
 	
 	if (CrosshairWidget)
 	{
@@ -93,6 +103,8 @@ void AGunSlinger::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 		EIC->BindAction(AimAction, ETriggerEvent::Completed, this, &AGunSlinger::StopAiming);
 		EIC->BindAction(ShootAction, ETriggerEvent::Started, this, &AGunSlinger::Attack);
 		EIC->BindAction(CoverAction, ETriggerEvent::Started, this, &AGunSlinger::TakeCover);
+		EIC->BindAction(DodgeAction, ETriggerEvent::Started, this, &AGunSlinger::Dodge);
+		EIC->BindAction(UseAction, ETriggerEvent::Completed, this, &AGunSlinger::UseInteractive);
 
 		// Character functions
 		EIC->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
@@ -189,6 +201,11 @@ bool AGunSlinger::GetIsInCover()
 	return ActiveCoverZone.IsSet();
 }
 
+bool AGunSlinger::GetDodging()
+{
+	return IsDodging;
+}
+
 void AGunSlinger::Server_SetAnimationState_Implementation(AGunSlinger* Target, bool InCover, bool Aiming)
 {
 	Multi_SetAnimationState(this, IsCrouching, IsAiming);
@@ -213,6 +230,51 @@ void AGunSlinger::Multi_SetRotationTarget_Implementation(AGunSlinger* Target, fl
 	UE::Math::TQuat<double> MeshRot = GetMesh()->GetRelativeRotation().Quaternion();
 
 //	Target->BaseRotationOffset = MeshRot;
+}
+
+void AGunSlinger::Server_LoadLevelInstance_Implementation()
+{
+	Multi_LoadLevelInstance();
+}
+
+void AGunSlinger::Multi_LoadLevelInstance_Implementation()
+{
+	FVector Loc = FVector(0.f, 0.f, 0.f);
+	bool success;
+	ULevelStreamingDynamic* LoadedLevel = ULevelStreamingDynamic::LoadLevelInstance(
+		GetWorld(),
+		"LoadTest",
+		Loc,
+		FRotator(0.f, 0.f, 0.f),
+		success,
+		TEXT("LoadTest1"));
+	if (!success)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not load level instance"));
+	}	
+}
+
+void AGunSlinger::Multi_Interact_Implementation(FVector Pos, FVector Dir)
+{
+	// Fire Raycast
+	FHitResult Hit;
+	GetWorld()->LineTraceSingleByChannel(
+		Hit,
+		Pos,
+		Pos + Dir * 100.f,
+		ECC_GameTraceChannel1);
+
+	if (Hit.bBlockingHit)
+	{
+		AActor* IntAct = Hit.GetActor();
+		AInteractive* Int = Cast<AInteractive>(IntAct);
+		Int->Trigger();
+	}
+}
+
+void AGunSlinger::Server_Interact_Implementation(FVector Pos, FVector Dir)
+{
+	Multi_Interact(Pos, Dir);
 }
 
 void AGunSlinger::SetRotationTarget(float RotTarget)
@@ -398,6 +460,13 @@ void AGunSlinger::Move(const FInputActionValue& Value)
 void AGunSlinger::Look(const FInputActionValue& Value)
 {
 	FVector2D LookVector = Value.Get<FVector2D>();
+	if (!ActiveCoverZone.IsSet() && !IsAiming)
+	{
+		FVector CamLookPoint = Camera->GetComponentLocation() + (Camera->GetForwardVector() * 2000.f);
+		FVector LookDir = UKismetMathLibrary::GetDirectionUnitVector(GetActorLocation(), CamLookPoint);
+		MeshRotationTargetY = -(GetActorForwardVector().Rotation().Yaw - LookDir.Rotation().Yaw);
+	}
+
 	AddControllerYawInput(LookVector.X * 0.5f);
 	AddControllerPitchInput(LookVector.Y * 0.5f);
 }
@@ -442,19 +511,48 @@ void AGunSlinger::StopAiming(const FInputActionValue& Value)
 void AGunSlinger::TakeCover()
 {
 	
+	UE_LOG(LogTemp, Warning, TEXT("Taking Cover?"));
 	const bool ClearZone = ActiveCoverZone.IsSet();
 	if (ClearZone)
 	{
 		// This is a bit weird
 		SetActiveCoverZone(ActiveCoverZone.GetValue(), ClearZone);
+		UE_LOG(LogTemp, Warning, TEXT("Clearing Active Zone"));
 		return;
 	}
 	if (!OverlappedCoverZone.IsSet())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("Overlap zone not set"));
 		// Log something maybe
 		return;
 	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("Crouching!"));
 	SetActiveCoverZone(OverlappedCoverZone.GetValue(), ClearZone);
+}
+
+void AGunSlinger::Dodge()
+{
+	IsDodging = true;
+	UE_LOG(LogTemp, Warning, TEXT("Dodging!"));
+	if (HasAuthority())
+	{
+		Multi_LoadLevelInstance();
+	} else
+	{
+		Server_LoadLevelInstance();
+	}
+}
+
+void AGunSlinger::UseInteractive()
+{
+	if (HasAuthority())
+	{
+		Multi_Interact(GetActorLocation(), GetActorForwardVector());
+	} else
+	{
+		Server_Interact(GetActorLocation(), GetActorForwardVector());
+	}
 }
 
 void AGunSlinger::UpdateAim()
@@ -466,7 +564,7 @@ void AGunSlinger::UpdateAim()
 		//	MeshSpring->bInheritYaw = true;
 			
 			MeshRotationTargetY = 0.f;
-			SetRotationTarget(0.f);
+		//	SetRotationTarget(0.f);
 		} else
 		{
 			//SetRotationTarget(GetActorForwardVector().Rotation().Yaw);
@@ -494,7 +592,7 @@ void AGunSlinger::UpdateAim()
 		MeshRotationTargetY,
 		MeshSpring->GetRelativeRotation().Roll).Quaternion();
 
-	float RotSpeed = IsAiming ? 0.5f : 0.1f;
+	float RotSpeed = IsAiming ? 0.5f : 0.3f;
 	
 	MeshRot = UKismetMathLibrary::Quat_Slerp(
 		MeshRot,

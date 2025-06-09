@@ -8,14 +8,28 @@
 
 class ALevelPosition;
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class DETSHOOT_API ULevelManager : public UActorComponent
+USTRUCT()
+struct FLevelPositionRow
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere)
+	TArray<ALevelPosition*> PosRow;
+
+	ALevelPosition* operator[] (int32 i)
+	{
+		return PosRow[i];
+	}
+};
+
+UCLASS()
+class DETSHOOT_API ALevelManager : public AActor
 {
 	GENERATED_BODY()
 
 public:
 	// Sets default values for this component's properties
-	ULevelManager();
+	ALevelManager();
 
 	UPROPERTY(EditAnywhere)
 	TArray<FString> LevelNames;
@@ -31,10 +45,14 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere)
-	TArray<ALevelPosition*> LevelPositions;
+	TArray<FLevelPositionRow> LevelPositions;
+
+	UFUNCTION()
+	void OnLevelInstanceLoaded(ULevel* Level, UWorld* World);
 
 public:
 	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void Tick(float DeltaTime) override;
+private:
+	bool LoadingLevel = false;
 };

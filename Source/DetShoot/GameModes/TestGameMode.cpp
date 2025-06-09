@@ -2,3 +2,10 @@
 
 
 #include "TestGameMode.h"
+
+#include "DetShoot/Components/LevelManager.h"
+
+ATestGameMode::ATestGameMode()
+{
+}
+

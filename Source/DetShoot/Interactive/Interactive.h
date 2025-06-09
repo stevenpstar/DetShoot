@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "Interactive.generated.h"
 
+class UBoxComponent;
+
 UCLASS()
 class DETSHOOT_API AInteractive : public AActor
 {
@@ -14,6 +16,14 @@ class DETSHOOT_API AInteractive : public AActor
 public:
 	// Sets default values for this actor's properties
 	AInteractive();
+
+	UPROPERTY(EditAnywhere)
+	UBoxComponent* TargetVolume;
+
+	UPROPERTY(EditAnywhere)
+	FString TypeLabel = "None";
+
+	virtual void Trigger();
 
 protected:
 	// Called when the game starts or when spawned

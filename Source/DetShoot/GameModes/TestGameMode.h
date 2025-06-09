@@ -9,8 +9,13 @@
 /**
  * 
  */
+
+class ULevelManager;
+
 UCLASS()
 class DETSHOOT_API ATestGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
+
+	ATestGameMode();
 };
